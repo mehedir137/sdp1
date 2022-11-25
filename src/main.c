@@ -15,18 +15,20 @@ struct Order {
   int quantity[20];
   int item_count;
   int order_id;
+  GtkWidget *bar;
 };
 
 int order_id_g = 100;
 struct Item items[100];
 int items_len = 0;
+int order_id_update = 0;
 
 static GArray *cart_array = NULL;
 static GArray *order_array = NULL;
 
 GtkApplication *app;
 GtkWidget *cart_list_box;
-GtkWidget *total_label;
+GtkWidget *total_lable;
 GtkWidget *confirm_button;
 GtkWidget *place_order_window;
 GtkWidget *token_window;
@@ -41,12 +43,9 @@ void read_items() {
     printf("%s", "Failed to find the product database file.");
     exit(1);
   }
-
   char name[20];
   float price;
-  while (fscanf(ptr, "%s%f", name, &price)) {
-    if (!strcmp(name, "end"))
-      break;
+  while (fscanf(ptr, "%s%f", name, &price) != EOF) {
     strcpy(items[items_len].name, name);
     items[items_len].price = price;
     items[items_len].idx = items_len;
@@ -55,14 +54,88 @@ void read_items() {
   }
 }
 
-int get_idx_from_order_id(int order_id) {
+int get_idx_form_order_id(int order_id) {
   for (int i = 0; i < order_array->len; ++i) {
     struct Order *o = order_array->data;
+    g_print("order_id %d\n", o[i].order_id);
     if (order_id == o[i].order_id) {
       return i;
     }
   }
   return -1;
+}
+void notify_button_click(GtkButton *button, gpointer order_id) {
+  int idx = get_idx_form_order_id((long long)order_id);
+  struct Order *o = order_array->data;
+  gtk_info_bar_set_message_type(GTK_INFO_BAR(o[idx].bar), GTK_MESSAGE_QUESTION);
+}
+void finish_button_click(GtkButton *button, gpointer order_id) {
+  g_print("pointer to order_id %lld\n", (long long)order_id);
+  int idx = get_idx_form_order_id((long long)order_id);
+
+  g_print("%d\n", idx);
+
+  GtkListBoxRow *r = gtk_list_box_get_row_at_index(kitchen_list_box, idx);
+  GtkListBoxRow *r2 = gtk_list_box_get_row_at_index(big_screen_list_box, idx);
+  gtk_list_box_remove(kitchen_list_box, r);
+  gtk_list_box_remove(big_screen_list_box, r2);
+  g_array_remove_index(order_array, idx);
+}
+
+void show_msg(const char text[]) {
+  gtk_widget_show(gtk_message_dialog_new(
+      NULL, GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR, GTK_BUTTONS_NONE, text));
+}
+
+// add order to the screen and kitchen
+void add_order(struct Order order) {
+  GtkWidget *vbox1;
+  GtkWidget *vbox2;
+  GtkWidget *vbox_inner;
+  GtkWidget *bar;
+  GtkWidget *label;
+  GtkWidget *finish_button;
+  GtkWidget *notify_button;
+  char text[100];
+
+  vbox1 = gtk_box_new(GTK_ORIENTATION_VERTICAL, 3);
+  vbox2 = gtk_box_new(GTK_ORIENTATION_VERTICAL, 3);
+  vbox_inner = gtk_box_new(GTK_ORIENTATION_VERTICAL, 3);
+
+  bar = gtk_info_bar_new();
+  order.bar = bar;
+  gtk_box_append(GTK_BOX(vbox2), bar);
+  gtk_info_bar_set_message_type(GTK_INFO_BAR(bar), GTK_MESSAGE_WARNING);
+
+  g_print("adding order id %d", order.order_id);
+  g_array_append_vals(order_array, &order, 1);
+  sprintf(text, "Order id: %d", order.order_id);
+  gtk_box_append(vbox1, gtk_label_new(text));
+  // gtk_grid_attach(vbox1, image, 0, 0, 2, 4);
+  gtk_box_append(vbox_inner, gtk_label_new(text));
+
+  for (int i = 0; i < order.item_count; ++i) {
+    sprintf(text, "%s %d pcs.", items[order.item_idx[i]].name,
+            items[order.item_idx[i]].count);
+    gtk_box_append(vbox1, gtk_label_new(text));
+    gtk_box_append(vbox_inner, gtk_label_new(text));
+    // gtk_info_bar_add_child(GTK_INFO_BAR(bar), gtk_label_new(text));
+
+    items[order.item_idx[i]].count = 0;
+  }
+  gtk_info_bar_add_child(GTK_INFO_BAR(bar), vbox_inner);
+  notify_button = gtk_button_new_with_label("Notify");
+  finish_button = gtk_button_new_with_label("Finish order");
+
+  order_id_update = order.order_id;
+  g_signal_connect(notify_button, "clicked", G_CALLBACK(notify_button_click),
+                   order.order_id);
+  g_signal_connect(finish_button, "clicked", G_CALLBACK(finish_button_click),
+                   order.order_id);
+  gtk_box_append(vbox1, notify_button);
+  gtk_box_append(vbox1, finish_button);
+  gtk_list_box_insert(GTK_LIST_BOX(kitchen_list_box), vbox1, -1);
+  gtk_list_box_insert(GTK_LIST_BOX(big_screen_list_box), vbox2, -1);
 }
 
 int get_item_idx_from_cart(int idx) {
@@ -75,49 +148,6 @@ int get_item_idx_from_cart(int idx) {
   return -1;
 }
 
-void notify_button_click(GtkButton *button, gpointer order_id) {}
-void finish_button_click(GtkButton *button, gpointer order_id) {
-  int idx = get_idx_from_order_id((int)order_id);
-
-  GtkListBoxRow *r = gtk_list_box_get_row_at_index(kitchen_list_box, idx);
-  gtk_list_box_remove(kitchen_list_box, r);
-  g_array_remove_index(order_array, idx);
-}
-
-void show_msg(const char text[]) {
-  gtk_widget_show(gtk_message_dialog_new(
-      NULL, GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR, GTK_BUTTONS_NONE, text));
-}
-
-// add order to the screen and kitchen
-void add_order(struct Order order) {
-  GtkWidget *vbox1;
-  GtkWidget *finish_button;
-  GtkWidget *notify_button;
-  char text[100];
-
-  g_array_append_vals(order_array, &order, 1);
-  sprintf(text, "Order id: %d", order.order_id);
-  vbox1 = gtk_box_new(GTK_ORIENTATION_VERTICAL, 3);
-  gtk_box_append(vbox1, gtk_label_new(text));
-
-  for (int i = 0; i < order.item_count; ++i) {
-    sprintf(text, "%s %d pcs.", items[order.item_idx[i]].name,
-            items[order.item_idx[i]].count);
-    gtk_box_append(vbox1, gtk_label_new(text));
-  }
-  notify_button = gtk_button_new_with_label("Notify");
-  finish_button = gtk_button_new_with_label("Finish order");
-
-  g_signal_connect(notify_button, "clicked", G_CALLBACK(notify_button_click),
-                   order.order_id);
-  g_signal_connect(finish_button, "clicked", G_CALLBACK(finish_button_click),
-                   order.order_id);
-  gtk_box_append(vbox1, notify_button);
-  gtk_box_append(vbox1, finish_button);
-  gtk_list_box_insert(GTK_LIST_BOX(kitchen_list_box), vbox1, -1);
-}
-
 void print_button_click(GtkButton *button, gpointer window) {
   int *n = (int *)cart_array->data;
 
@@ -128,22 +158,16 @@ void print_button_click(GtkButton *button, gpointer window) {
   order.item_count = cart_array->len;
 
   //======================================
-
   int i = 0;
-  while ((cart_array->len)) {
+  while (cart_array->len) {
     order.item_idx[i] = n[0];
     order.quantity[i] = items[n[0]].count;
     g_print("len: %d\n", cart_array->len);
-
     GtkListBoxRow *r = gtk_list_box_get_row_at_index(cart_list_box, 0);
     gtk_list_box_remove(cart_list_box, r);
-
-    items[n[0]].count = 0;
     g_array_remove_index(cart_array, 0);
-
     ++i;
   }
-
   add_order(order);
   update_total_label();
   gtk_window_close(token_window);
@@ -152,9 +176,11 @@ void print_button_click(GtkButton *button, gpointer window) {
 void add_button_click(GtkButton *button, gpointer user_data) {
   struct Item *item = user_data;
   ++item->count;
+
   char cout_text[30];
   sprintf(cout_text, "Price: %.2f × %d = %.2f TK", item->price, item->count,
           item->price * item->count);
+
   gtk_label_set_text(item->count_label, cout_text);
   update_total_label();
   g_print("add: %s\n", item->name);
@@ -203,7 +229,7 @@ void show_token_window(GtkButton *button, gpointer user_data) {
       int idx = n[i];
 
       // adjusting space in token window
-      char space[50] = "                      ";
+      char space[100] = "                      ";
       if ((8 - strlen(items[idx].name)) == 1) {
         strcat(space, " ");
       } else if ((8 - strlen(items[idx].name)) == 2) {
@@ -216,8 +242,14 @@ void show_token_window(GtkButton *button, gpointer user_data) {
         strcat(space, "     ");
       }
 
+      if (items[idx].price >= 10.00 && items[idx].price < 100.00) {
+        strcat(space, " ");
+      } else if (items[idx].price < 10.00) {
+        strcat(space, "  ");
+      }
+
       total += items[idx].price * items[idx].count;
-      sprintf(line, "  %s%s%06.2f x %d = %06.2f TK\n", items[idx].name, space,
+      sprintf(line, "  %s%s%0.2f x %d = %0.2f TK\n", items[idx].name, space,
               items[idx].price, items[idx].count,
               items[idx].price * items[idx].count);
       gtk_text_buffer_insert(buffer, &iter, line, -1);
@@ -244,9 +276,22 @@ void show_token_window(GtkButton *button, gpointer user_data) {
     gtk_box_append(vbox, print_button);
 
     gtk_window_set_child(GTK_WINDOW(token_window), vbox);
-    gtk_window_set_default_size(token_window, 480, 700);
+    gtk_window_set_default_size(token_window, 490, 700);
     gtk_widget_show(token_window);
   }
+}
+
+void discard_button_click(GtkButton *button, gpointer user_data) {
+  struct Item *item = user_data;
+
+  item->count = 0;
+  int cart_idx = get_item_idx_from_cart(item->idx);
+
+  GtkListBoxRow *r = gtk_list_box_get_row_at_index(cart_list_box, cart_idx);
+  gtk_list_box_remove(cart_list_box, r);
+  g_array_remove_index(cart_array, cart_idx);
+  update_total_label();
+  g_print("remove: %s\n", item->name);
 }
 
 void remove_button_click(GtkButton *button, gpointer user_data) {
@@ -265,19 +310,6 @@ void remove_button_click(GtkButton *button, gpointer user_data) {
     gtk_list_box_remove(cart_list_box, r);
     g_array_remove_index(cart_array, cart_idx);
   }
-  update_total_label();
-  g_print("remove: %s\n", item->name);
-}
-
-void discard_button_click(GtkButton *button, gpointer user_data) {
-  struct Item *item = user_data;
-
-  item->count = 0;
-  int cart_idx = get_item_idx_from_cart(item->idx);
-
-  GtkListBoxRow *r = gtk_list_box_get_row_at_index(cart_list_box, cart_idx);
-  gtk_list_box_remove(cart_list_box, r);
-  g_array_remove_index(cart_array, cart_idx);
   update_total_label();
   g_print("remove: %s\n", item->name);
 }
@@ -400,7 +432,6 @@ void item_select_handler(GtkListBox *box, GtkListBoxRow *row,
   // add_to_cart(&items[idx]);
 }
 
-// total price label update
 void update_total_label() {
   int *n = (int *)cart_array->data;
   float total = 0;
@@ -409,8 +440,8 @@ void update_total_label() {
     total += items[element].price * items[element].count;
   }
   char total_text[20];
-  sprintf(total_text, "Total: %.2f", total);
-  gtk_label_set_text(total_label, total_text);
+  sprintf(total_text, "Total: %.2f Tk", total);
+  gtk_label_set_text(total_lable, total_text);
 }
 
 void init_big_screen_window(GtkWidget *window) {
@@ -424,6 +455,7 @@ void init_big_screen_window(GtkWidget *window) {
   gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scrolled), listbox);
   gtk_window_set_child(GTK_WINDOW(window), scrolled);
 }
+
 void init_kitchen_window(GtkWidget *window) {
   GtkWidget *listbox = gtk_list_box_new();
   kitchen_list_box = listbox;
@@ -474,6 +506,9 @@ static void activate(GtkApplication *app, gpointer user_data) {
   init_kitchen_window(kitchen_window);
   //=========
 
+  place_order_window = gtk_application_window_new(app);
+  gtk_window_set_title(GTK_WINDOW(place_order_window), "Order Window");
+
   hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 3);
   gtk_box_set_homogeneous(hbox, TRUE);
   vbox1 = gtk_box_new(GTK_ORIENTATION_VERTICAL, 3);
@@ -490,38 +525,30 @@ static void activate(GtkApplication *app, gpointer user_data) {
   gtk_box_append(GTK_BOX(vbox1), scrolled);
   gtk_box_append(GTK_BOX(vbox2), scrolled2);
 
-  total_label = gtk_label_new("");
+  total_lable = gtk_label_new("");
   confirm_button = gtk_button_new_with_label("Confirm order");
   g_signal_connect(confirm_button, "clicked", G_CALLBACK(show_token_window),
                    NULL);
 
-  // gtk_widget_set_size_request(place_order_windowm, 1000, 800);
-  // gtk_window_set_resizable(place_order_windowm, FALSE);
-
-  gtk_box_append(vbox2, total_label);
+  gtk_box_append(vbox2, total_lable);
   gtk_box_append(vbox2, confirm_button);
   gtk_box_append(GTK_BOX(hbox), vbox1);
   // gtk_box_append(GTK_BOX(hbox), seperator);
   gtk_box_append(GTK_BOX(hbox), vbox2);
 
-  // Order Window
-  place_order_window = gtk_application_window_new(app);
-  gtk_window_set_title(GTK_WINDOW(place_order_window), "Order Window");
   gtk_window_set_child(GTK_WINDOW(place_order_window), hbox);
-
-  gtk_window_set_default_size(big_screen_window, 1000, 800);
-  gtk_window_set_default_size(kitchen_window, 1000, 800);
   gtk_window_set_default_size(place_order_window, 1000, 800);
-
   gtk_widget_show(place_order_window);
-  // gtk_widget_show(big_screen_window);
-  // gtk_widget_show(kitchen_window);
+  gtk_window_set_default_size(big_screen_window, 350, 800);
+  gtk_widget_show(big_screen_window);
+  gtk_window_set_default_size(kitchen_window, 350, 800);
+  gtk_widget_show(kitchen_window);
 }
 
 int main(int argc, char **argv) {
   read_items();
   cart_array = g_array_sized_new(FALSE, FALSE, sizeof(int), 1);
-  order_array = g_array_sized_new(FALSE, FALSE, sizeof(struct Item), 1);
+  order_array = g_array_sized_new(FALSE, FALSE, sizeof(struct Order), 1);
   int status;
 
   app = gtk_application_new("com.sdp.food", G_APPLICATION_DEFAULT_FLAGS);
