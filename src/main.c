@@ -28,7 +28,7 @@ static GArray *order_array = NULL;
 
 GtkApplication *app;
 GtkWidget *cart_list_box;
-GtkWidget *total_lable;
+GtkWidget *total_label;
 GtkWidget *confirm_button;
 GtkWidget *place_order_window;
 GtkWidget *token_window;
@@ -177,11 +177,11 @@ void add_button_click(GtkButton *button, gpointer user_data) {
   struct Item *item = user_data;
   ++item->count;
 
-  char cout_text[30];
-  sprintf(cout_text, "Price: %.2f × %d = %.2f TK", item->price, item->count,
+  char count_text[30];
+  sprintf(count_text, "Price: %.2f × %d = %.2f TK", item->price, item->count,
           item->price * item->count);
 
-  gtk_label_set_text(item->count_label, cout_text);
+  gtk_label_set_text(item->count_label, count_text);
   update_total_label();
   g_print("add: %s\n", item->name);
 }
@@ -298,10 +298,10 @@ void remove_button_click(GtkButton *button, gpointer user_data) {
   struct Item *item = user_data;
   --item->count;
   if (item->count > 0) {
-    char cout_text[30];
-    sprintf(cout_text, "Price: %.2f × %d = %.2f TK", item->price, item->count,
+    char count_text[30];
+    sprintf(count_text, "Price: %.2f × %d = %.2f TK", item->price, item->count,
             item->price * item->count);
-    gtk_label_set_text(item->count_label, cout_text);
+    gtk_label_set_text(item->count_label, count_text);
   } else {
     item->count = 0;
     g_print("=========> %d to remove\n", item->idx);
@@ -347,10 +347,10 @@ void add_to_cart(struct Item *item) {
     gtk_grid_attach(grid, label, 2, 0, 1, 1);
 
     // cart item price
-    char cout_text[30];
-    sprintf(cout_text, "Price: %.2f × %d = %.2f TK", item->price, item->count,
+    char count_text[30];
+    sprintf(count_text, "Price: %.2f × %d = %.2f TK", item->price, item->count,
             item->price * item->count);
-    item->count_label = gtk_label_new(cout_text);
+    item->count_label = gtk_label_new(count_text);
     gtk_grid_attach(grid, item->count_label, 2, 1, 3, 1);
 
     // cart button add
@@ -441,7 +441,7 @@ void update_total_label() {
   }
   char total_text[20];
   sprintf(total_text, "Total: %.2f Tk", total);
-  gtk_label_set_text(total_lable, total_text);
+  gtk_label_set_text(total_label, total_text);
 }
 
 void init_big_screen_window(GtkWidget *window) {
@@ -525,12 +525,12 @@ static void activate(GtkApplication *app, gpointer user_data) {
   gtk_box_append(GTK_BOX(vbox1), scrolled);
   gtk_box_append(GTK_BOX(vbox2), scrolled2);
 
-  total_lable = gtk_label_new("");
+  total_label = gtk_label_new("");
   confirm_button = gtk_button_new_with_label("Confirm order");
   g_signal_connect(confirm_button, "clicked", G_CALLBACK(show_token_window),
                    NULL);
 
-  gtk_box_append(vbox2, total_lable);
+  gtk_box_append(vbox2, total_label);
   gtk_box_append(vbox2, confirm_button);
   gtk_box_append(GTK_BOX(hbox), vbox1);
   // gtk_box_append(GTK_BOX(hbox), seperator);
