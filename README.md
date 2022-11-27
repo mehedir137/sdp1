@@ -24,4 +24,4 @@ gcc $(pkg-config --cflags gtk4) -o food_order main.c $(pkg-config --libs gtk4)
 ```
 
 **Windows:**
-Please follow [GTK docs](https://www.gtk.org/docs/installations/windows) for blinding in windows.
+Please follow [GTK docs](https://www.gtk.org/docs/installations/windows) for bilding in windows.
